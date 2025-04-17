@@ -120,7 +120,7 @@ else
 fi
 # ------------------ QUIC Settings Based on Usage ------------------
 echo ""
-echo "Choose your usage type thing for optimal QUIC tuning:"
+echo "Choose your usage type for optimal QUIC tuning:"
 echo "  [1] Normal (Gaming, Browsing, Stream up to 1080p)"
 echo "  [2] Heavy (File Transfer, Multiple Clients, Backup, 4K Streaming)"
 echo "  [3] dynamic (For variable networks with connectivity diversity)"
