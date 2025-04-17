@@ -120,10 +120,25 @@ else
 fi
 # ------------------ QUIC Settings Based on Usage ------------------
 echo ""
-echo "Choose your usage type for optimal QUIC tuning:"
+echo "Choose your usage type thing for optimal QUIC tuning:"
 echo "  [1] Normal (Gaming, Browsing, Stream up to 1080p)"
 echo "  [2] Heavy (File Transfer, Multiple Clients, Backup, 4K Streaming)"
-read -rp "Enter your choice [1-2]: " USAGE_CHOICE
+echo "  [3] dynamic (For variable networks with connectivity diversity)"
+read -rp "Enter your choice [1-3]: " USAGE_CHOICE
+
+case "$USAGE_CHOICE" in
+  3)
+    QUIC_SETTINGS=$(cat <<EOF
+quic:
+  initStreamReceiveWindow: 10485760
+  maxStreamReceiveWindow: 25165824
+  initConnReceiveWindow: 20971520
+  maxConnReceiveWindow: 50331648
+  maxIdleTimeout: 25s
+  keepAliveInterval: 8s
+  disablePathMTUDiscovery: false
+EOF
+)
 
 case "$USAGE_CHOICE" in
   2)
