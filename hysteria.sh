@@ -16,6 +16,33 @@ colorEcho() {
     *)       echo "$text" ;;
   esac
 }
+# ------------------ draw_menu ------------------
+draw_menu() {
+  local title="$1"
+  shift
+  local options=("$@")
+
+  GREEN='\e[32m'
+  WHITE='\e[97m'
+  RESET='\e[0m'
+
+  local width=40
+  local line=""
+  line=$(printf '═%.0s' $(seq 1 $width))
+
+  echo -e "${GREEN}╔${line}╗${RESET}"
+  printf "${GREEN}║${WHITE} %-${width}s ${GREEN}║\n" "$title"
+  echo -e "${GREEN}╠${line}╣${RESET}"
+
+  for opt in "${options[@]}"; do
+    printf "${GREEN}║${WHITE} %-*s ${GREEN}║\n" $width "$opt"
+  done
+
+  echo -e "${GREEN}╠${line}╣${RESET}"
+  printf "${GREEN}║${WHITE} %-*s ${GREEN}║\n" $width "Enter your choice:"
+  echo -e "${GREEN}╚${line}╝${RESET}"
+  echo -ne "${WHITE}> ${RESET}"
+}
 
 # ------------------ Initialization ------------------
 ARCH=$(uname -m)
@@ -52,13 +79,11 @@ sudo mkdir -p /var/log/
 
 # ------------------ Server Type Menu ------------------
 while true; do
-  echo ""
-  echo "Select server type:"
-  echo "  [1] Iran"
-  echo "  [2] Foreign"
-  echo "  [3] Exit"
-  read -rp "Enter your choice [1-3]: " SERVER_CHOICE
-
+draw_menu "Server Type Selection" \
+    "1 | Setup Iranian Server" \
+    "2 | Setup Foreign Server" \
+    "3 | Exit"
+  read -r SERVER_CHOICE
   case "$SERVER_CHOICE" in
     1)
       SERVER_TYPE="iran"
@@ -81,11 +106,11 @@ done
 # ------------------ IP Version Menu (Only for Iran) ------------------
 if [ "$SERVER_TYPE" == "iran" ]; then
   while true; do
-    echo ""
-    echo "Select IP version for remote connection:"
-    echo "  [1] IPv4"
-    echo "  [2] IPv6"
-    read -rp "Enter your choice [1-2]: " IP_VERSION_CHOICE
+draw_menu "IP Version Selection" \
+      "1 | IPv4" \
+      "2 | IPv6"
+    read -r IP_VERSION_CHOICE
+
 
     case "$IP_VERSION_CHOICE" in
       1)
@@ -120,12 +145,11 @@ else
 fi
 
 # ------------------ QUIC Settings Based on Usage ------------------
-echo ""
-echo "Choose your usage type for optimal QUIC tuning:"
-echo "  [1] Normal (Gaming, Browsing, Stream up to 1080p)"
-echo "  [2] Heavy (File Transfer, Multiple Clients, Backup, 4K Streaming)"
-echo "  [3] Dynamic (For variable networks with connectivity diversity)"
-read -rp "Enter your choice [1-3]: " USAGE_CHOICE
+draw_menu "Expected Simultaneous Users" \
+  "1 | 1 to 50 users (Light load)" \
+  "2 | 50 to 100 users (Medium load)" \
+  "3 | 100 to 300 users (Heavy load)"
+read -r USAGE_CHOICE
 
 case "$USAGE_CHOICE" in
   1)
@@ -148,7 +172,7 @@ quic:
   maxStreamReceiveWindow: 33554432
   initConnReceiveWindow: 33554432
   maxConnReceiveWindow: 67108864
-  maxIdleTimeout: 15s
+  maxIdleTimeout: 20s
   keepAliveInterval: 10s
   disablePathMTUDiscovery: false
 EOF
@@ -157,18 +181,18 @@ EOF
   3)
     QUIC_SETTINGS=$(cat <<EOF
 quic:
-  initStreamReceiveWindow: 10485760
-  maxStreamReceiveWindow: 25165824
-  initConnReceiveWindow: 20971520
-  maxConnReceiveWindow: 50331648
-  maxIdleTimeout: 15s
+  initStreamReceiveWindow: 33554432
+  maxStreamReceiveWindow: 67108864
+  initConnReceiveWindow: 67108864
+  maxConnReceiveWindow: 134217728
+  maxIdleTimeout: 25s
   keepAliveInterval: 10s
   disablePathMTUDiscovery: false
 EOF
 )
     ;;
   *)
-    echo "Invalid option. Defaulting to Normal settings."
+    echo "Invalid option. Defaulting to 1-50 users (light load)."
     QUIC_SETTINGS=$(cat <<EOF
 quic:
   initStreamReceiveWindow: 8388608
