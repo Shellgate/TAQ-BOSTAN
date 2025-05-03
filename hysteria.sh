@@ -85,7 +85,161 @@ if [ -f "/usr/local/bin/hysteria" ]; then
  sudo mv hysteria /usr/local/bin/
  fi
 sudo mkdir -p /etc/hysteria/
+MAPPING_FILE="/etc/hysteria/port_mapping.txt"
+sudo mkdir -p /etc/hysteria
+if [ ! -f "$MAPPING_FILE" ]; then
+  sudo touch "$MAPPING_FILE"
+  MAPPING_FILE="/etc/hysteria/port_mapping.txt"
+fi
 sudo mkdir -p /var/log/hysteria/
+
+if [ ! -f /etc/hysteria/hysteria-monitor.py ]; then
+  sudo curl -fsSL https://raw.githubusercontent.com/ParsaKSH/TAQ-BOSTAN/main/hysteria-monitor.py \
+    -o /etc/hysteria/hysteria-monitor.py
+  sudo chmod +x /etc/hysteria/hysteria-monitor.py
+fi
+
+# ------------------ Manage Tunnels Function ------------------
+manage_tunnels() {
+  set +e
+  set +o pipefail
+  colorEcho "Managing existing tunnels..." cyan
+  echo "Existing tunnels:"
+  for i in {1..9}; do
+    if [ -f "/etc/hysteria/iran-config${i}.yaml" ]; then
+      echo -e "\n=== Tunnel #${i} ==="
+      grep "server:" "/etc/hysteria/iran-config${i}.yaml" | cut -d'"' -f2
+      grep "auth:"   "/etc/hysteria/iran-config${i}.yaml" | cut -d'"' -f2
+      echo "Status: $(systemctl is-active hysteria${i})"
+    fi
+  done
+
+  echo -e "\nWhat would you like to do?"
+  echo "1) Edit a tunnel"
+  echo "2) Delete a tunnel"
+  echo "3) Back to previous menu"
+  read -rp "> " MANAGE_CHOICE
+
+  case "$MANAGE_CHOICE" in
+    1)
+      read -rp "Enter tunnel number to edit (1-9): " TUNNEL_NUM
+      if [ -f "/etc/hysteria/iran-config${TUNNEL_NUM}.yaml" ]; then
+        read -rp "Enter new server address (or press Enter to keep current): " NEW_SERVER
+        read -rp "Enter new password       (or press Enter to keep current): " NEW_PASSWORD
+        read -rp "Enter new SNI            (or press Enter to keep current): " NEW_SNI
+
+        [ -n "$NEW_SERVER"   ] && sed -i "s|server: .*|server: \"$NEW_SERVER\"|"   "/etc/hysteria/iran-config${TUNNEL_NUM}.yaml"
+        [ -n "$NEW_PASSWORD" ] && sed -i "s|auth: .*|auth: \"$NEW_PASSWORD\"|"     "/etc/hysteria/iran-config${TUNNEL_NUM}.yaml"
+        [ -n "$NEW_SNI"      ] && sed -i "s|sni: .*|sni: \"$NEW_SNI\"|"           "/etc/hysteria/iran-config${TUNNEL_NUM}.yaml"
+
+        systemctl restart hysteria${TUNNEL_NUM}
+        colorEcho "Tunnel #${TUNNEL_NUM} updated and restarted." green
+      else
+        colorEcho "Tunnel #${TUNNEL_NUM} does not exist." red
+      fi
+      ;;
+    2)
+      read -rp "Enter tunnel number to delete (1-9): " TUNNEL_NUM
+      if [ -f "/etc/hysteria/iran-config${TUNNEL_NUM}.yaml" ]; then
+        systemctl stop   hysteria${TUNNEL_NUM}
+        systemctl disable hysteria${TUNNEL_NUM}
+        rm "/etc/hysteria/iran-config${TUNNEL_NUM}.yaml"
+        rm "/etc/systemd/system/hysteria${TUNNEL_NUM}.service"
+        systemctl daemon-reload
+        colorEcho "Tunnel #${TUNNEL_NUM} deleted." green
+      else
+        colorEcho "Tunnel #${TUNNEL_NUM} does not exist." red
+      fi
+      sed -i "\%^iran-config${TUNNEL_NUM}\.yaml|%d" "$MAPPING_FILE"
+      ;;
+    3)
+      return
+      ;;
+    *)
+      colorEcho "Invalid choice. Returning..." red
+      ;;
+  esac
+  set -e
+  set -o pipefail
+}
+
+# ------------------ Monitor Ports Function ------------------
+monitor_ports() {
+
+  set +e
+  set +o pipefail
+
+  clear
+  colorEcho "=== Monitoring Traffic Ports ===" cyan
+  echo ""
+
+
+  if ! command -v netstat &> /dev/null; then
+    colorEcho "Installing net-tools..." yellow
+    sudo apt-get update -qq
+    sudo apt-get install -y net-tools >/dev/null 2>&1
+  fi
+
+  local found=0
+  for i in {1..9}; do
+    local cfg="/etc/hysteria/iran-config${i}.yaml"
+    [ -f "$cfg" ] || continue
+    ((found++))
+
+    echo "🔵 Tunnel #${i}"
+    echo "----------------------------------------"
+
+    local srv
+    srv=$(grep "server:" "$cfg" | cut -d'"' -f2)
+    echo "📡 Server: $srv"
+    if systemctl is-active --quiet hysteria${i}; then
+      echo "🟢 Service: Active"
+    else
+      echo "🔴 Service: Inactive"
+    fi
+
+    echo -e "\n🔌 Ports Status:"
+
+    echo "TCP Ports:"
+    while read -r line; do
+      port=$(echo "$line" | grep -o '[0-9]\+')
+      if netstat -tln | grep -q ":$port "; then
+        echo "   ✅ $port (Active)"
+      else
+        echo "   ❌ $port (Inactive)"
+      fi
+    done < <(
+      grep -A50 "tcpForwarding:" "$cfg" 2>/dev/null \
+      | grep "listen:" 2>/dev/null
+    )
+
+    echo -e "\nUDP Ports:"
+    while read -r line; do
+      port=$(echo "$line" | grep -o '[0-9]\+')
+      if netstat -uln | grep -q ":$port "; then
+        echo "   ✅ $port (Active)"
+      else
+        echo "   ❌ $port (Inactive)"
+      fi
+    done < <(
+      grep -A50 "udpForwarding:" "$cfg" 2>/dev/null \
+      | grep "listen:" 2>/dev/null
+    )
+
+    echo "----------------------------------------"
+    echo ""
+  done
+
+  if [ $found -eq 0 ]; then
+    colorEcho "No tunnels found!" yellow
+  fi
+
+  colorEcho "Press Enter to return..." green
+  read -r
+
+  set -e
+  set -o pipefail
+}
 
 # ------------------ Server Type Menu ------------------
 while true; do
@@ -96,8 +250,31 @@ draw_menu "Server Type Selection" \
   read -r SERVER_CHOICE
   case "$SERVER_CHOICE" in
     1)
-      SERVER_TYPE="iran"
-      break
+      while true; do
+        draw_menu "Iranian Server Options" \
+          "1 | Create New Tunnel" \
+          "2 | Edit tunnel list" \
+          "3 | Monitor Traffic Ports" \
+          "4 | Exit"
+        read -rp "> " IRAN_CHOICE
+        case "$IRAN_CHOICE" in
+          1) 
+            SERVER_TYPE="iran"; break 2
+            ;;
+          2) 
+            manage_tunnels 
+            ;;
+          3) 
+            monitor_ports     
+            ;;
+          4) 
+            colorEcho "Exiting..." yellow; exit 0 
+            ;;
+          *) 
+            colorEcho "Invalid selection. Please enter 1, 2, 3, or 4." red 
+            ;;
+        esac
+      done
       ;;
     2)
       SERVER_TYPE="foreign"
@@ -116,23 +293,39 @@ done
 # ------------------ IP Version Menu (Only for Iran) ------------------
 if [ "$SERVER_TYPE" == "iran" ]; then
   while true; do
-draw_menu "IP Version Selection" \
+    # Scan for existing tunnels and find the next available number
+    NEXT_TUNNEL=1
+    for i in {1..9}; do
+      if [ -f "/etc/hysteria/iran-config${i}.yaml" ]; then
+        NEXT_TUNNEL=$((i + 1))
+      fi
+    done
+    
+    colorEcho "Next available tunnel number: $NEXT_TUNNEL" cyan
+    
+    draw_menu "IP Version Selection" \
       "1 | IPv4" \
-      "2 | IPv6"
+      "2 | IPv6" \
+      "3 | Exit"
     read -r IP_VERSION_CHOICE
-
 
     case "$IP_VERSION_CHOICE" in
       1)
         REMOTE_IP="0.0.0.0"
+        export NEXT_TUNNEL
         break
         ;;
       2)
         REMOTE_IP="[::]"
+        export NEXT_TUNNEL
         break
         ;;
+      3)
+        # Return to previous menu
+        continue 2
+        ;;
       *)
-        colorEcho "Invalid selection. Please enter 1 or 2." red
+        colorEcho "Invalid selection. Please enter 1, 2, or 3." red
         ;;
     esac
   done
@@ -306,7 +499,6 @@ elif [ "$SERVER_TYPE" == "iran" ]; then
     while true; do
       read -p "Enter IP Address or Domain for Foreign server: " SERVER_ADDRESS
       if [[ "$SERVER_ADDRESS" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
-  
         break
       elif [[ "$SERVER_ADDRESS" =~ ^[0-9a-fA-F:]+$ ]]; then
         SERVER_ADDRESS="[${SERVER_ADDRESS}]"
@@ -349,10 +541,11 @@ elif [ "$SERVER_TYPE" == "iran" ]; then
       if [ -z "$FORWARDED_PORTS" ]; then
         FORWARDED_PORTS="$TUNNEL_PORT"
       else
-        FORWARDED_PORTS="$FORWARDED_PORTS, $TUNNEL_PORT"
+        FORWARDED_PORTS="$FORWARDED_PORTS,$TUNNEL_PORT"
       fi
     done
 
+    # Create configuration and service files for each tunnel
     CONFIG_FILE="/etc/hysteria/iran-config${i}.yaml"
     SERVICE_FILE="/etc/systemd/system/hysteria${i}.service"
 
@@ -392,17 +585,56 @@ EOF
     sudo systemctl enable hysteria${i}
     sudo systemctl start hysteria${i}
     sudo systemctl reload-or-restart hysteria${i}
+
+    
+    # Add cron job for each tunnel
+
+    echo "iran-config${i}.yaml|hysteria${i}|${FORWARDED_PORTS}" \
+    | sudo tee -a "$MAPPING_FILE" > /dev/null
     CRON_CMD="0 */5 * * * /usr/bin/systemctl restart hysteria${i}"
     TMP_FILE=$(mktemp)
-
     crontab -l 2>/dev/null | grep -vF "$CRON_CMD" > "$TMP_FILE" || true
     echo "$CRON_CMD" >> "$TMP_FILE"
     crontab "$TMP_FILE"
     rm -f "$TMP_FILE"
 
+    colorEcho "Tunnel $i setup completed." green
   done
+# ====== Set up per-config iptables counters ======
+while IFS='|' read -r cfg service ports; do
+  idx="${cfg##*config}"      # => "1.yaml"
+  idx="${idx%%.*}"           # => "1"
+  chain="HYST${idx}"         # => "HYST1"
+  sudo iptables -t mangle -N "$chain" 2>/dev/null || sudo iptables -t mangle -F "$chain"
+  IFS=',' read -ra PARR <<< "$ports"
+  for p in "${PARR[@]}"; do
+    sudo iptables -t mangle -A OUTPUT -p tcp --dport "$p" -j "$chain"
+    sudo iptables -t mangle -A OUTPUT -p udp --dport "$p" -j "$chain"
+  done
+done < "$MAPPING_FILE"
 
-  colorEcho "Tunnels set up successfully." green
+sudo tee /etc/systemd/system/hysteria-monitor.service > /dev/null <<'EOF'
+[Unit]
+Description=Hysteria Monitor Service
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /etc/hysteria/hysteria-monitor.py
+Restart=always
+RestartSec=10
+StandardOutput=file:/var/log/hysteria/monitor.log
+StandardError=file:/var/log/hysteria/monitor.err
+
+[Install]
+WantedBy=multi-user.target
+EOF
+sudo systemctl daemon-reload
+sudo systemctl enable hysteria-monitor
+sudo systemctl start hysteria-monitor
+
+
+  colorEcho "All tunnels set up successfully." green
 else
   colorEcho "Invalid server type. Please enter 'Iran' or 'Foreign'." red
   exit 1

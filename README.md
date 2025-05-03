@@ -6,7 +6,7 @@
 
 <div align="center">
   
-[![release](https://img.shields.io/badge/release-v2.0.3-%23006400)](#)
+[![release](https://img.shields.io/badge/release-v2.1.0-%23006400)](#)
 [![sponsor](https://img.shields.io/badge/sponsor-DigitalVPS.ir-%23FF0000)](https://client.digitalvps.ir/aff.php?aff=52)
 [![license](https://img.shields.io/badge/license-Apache2-%23006400)](#)
 [![club](https://img.shields.io/badge/club-OPIRAN-%234B0082)](https://t.me/OPIranClub)
@@ -257,7 +257,7 @@ bash <(curl -Ls https://raw.githubusercontent.com/ParsaKSH/TAQ-BOSTAN/main/scrip
 
 
 ![image](https://github.com/user-attachments/assets/f9f4e79a-0dd4-47ca-862a-8af8504a355a)
-ایران، کرمانشاه
+طاق‌بستان(تاق‌وه‌سان) سنگ نگاره دوره ساسانی مربوط به قرن سوم میلادی (ایران، کرمانشاه)
 
 
 
