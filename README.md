@@ -1,7 +1,6 @@
 
-
 <div align="center">
-<img src="https://github.com/user-attachments/assets/acc27110-4275-4751-937b-cdc63704164f" width="300" />
+<img src="https://github.com/user-attachments/assets/81a90a84-54f1-42ac-849a-a3ef6e830959" width="300" />
 </div>
 
 <div align="center">
@@ -9,7 +8,6 @@
 [![release](https://img.shields.io/badge/release-v2.1.0-%23006400)](#)
 [![sponsor](https://img.shields.io/badge/sponsor-DigitalVPS.ir-%23FF0000)](https://client.digitalvps.ir/aff.php?aff=52)
 [![license](https://img.shields.io/badge/license-Apache2-%23006400)](#)
-[![club](https://img.shields.io/badge/club-OPIRAN-%234B0082)](https://t.me/OPIranClub)
 
 </div>
 
@@ -181,9 +179,8 @@ bash <(curl -Ls https://raw.githubusercontent.com/ParsaKSH/TAQ-BOSTAN/main/scrip
 ## 📞 پشتیبانی و راهنمایی
 <details>
 <summary>راه های ارتباطی</summary>
-هرگونه سؤال یا مشکل خود را در گروه اپ‌ایران مطرح کنید.
+هرگونه سؤال یا مشکل خود را در بخش Issues پروژه مطرح کنید.
 
-- 💬 **گروه اپ‌ایران:** [OPIranClub](https://t.me/OPIranClub)
 </details>
 
 ---
